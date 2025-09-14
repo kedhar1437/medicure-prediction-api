@@ -1,94 +1,85 @@
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI
+from pydantic import BaseModel
 import joblib
 import pandas as pd
 from pathlib import Path
+from typing import List
+import uvicorn
 
-# Base setup
-app = FastAPI()
+
 BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+app = FastAPI(title="Medicure AI Diagnosis API")
 
-# Load model (enhanced joblib)
+# filenames expected in same folder
 MODEL_PATH = BASE_DIR / "disease_model_enhanced.joblib"
-print("Loading model from:", MODEL_PATH)
+CSV_PATH = BASE_DIR / "disease_symptoms_extended.csv"
 
-model_data = joblib.load(MODEL_PATH)
-model = model_data["model"]
-features = model_data["features"]
-classes = model_data.get("classes", [])
-symptom_choices = sorted([s.replace("_", " ") for s in features])
-disease_info = model_data.get("disease_info", {})
-symptom_descriptions = model_data.get("symptom_descriptions", {})
+print("MODEL_PATH:", MODEL_PATH)
+print("CSV_PATH:", CSV_PATH)
 
-
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """Render home page with symptom selection form"""
-    return templates.TemplateResponse("index.html", {
-        "request": request,
-        "symptom_choices": symptom_choices
-    })
+# Load model and feature list at startup
+model = joblib.load(MODEL_PATH)
+df = pd.read_csv(CSV_PATH)
+# features are CSV columns except 'disease'
+FEATURES = [c for c in df.columns if c.lower() != "disease"]
 
 
-@app.post("/predict", response_class=HTMLResponse)
-async def predict(
-    request: Request,
-    symptom1: str = Form(...),
-    symptom2: str = Form(None),
-    symptom3: str = Form(None),
-    symptom4: str = Form(None),
-    symptom5: str = Form(None)
-):
+# utility: normalize a user symptom string so it matches feature names
+def normalize_symptom(sym: str) -> str:
+    return sym.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+class SymptomsIn(BaseModel):
+    symptoms: List[str]
+
+
+# ✅ Root route for browser testing
+@app.get("/")
+def read_root():
+    return {
+        "message": "Welcome to MediCure Prediction API",
+        "endpoints": ["/api/symptoms", "/api/predict"],
+    }
+
+
+@app.get("/api/symptoms")
+def get_symptoms():
+    """Return readable symptom list for the Android app (spaces instead of underscores)."""
+    readable = [f.replace("_", " ") for f in FEATURES]
+    return {"symptoms": readable}
+
+
+@app.post("/api/predict")
+def predict(req: SymptomsIn):
+    """Accepts JSON {"symptoms": [...]} and returns a list of formatted predictions.
+
+    Returns: {"predictions": ["Disease - 95.3%", ...]}.
+    """
+    selected_norm = set(normalize_symptom(s) for s in req.symptoms)
+
+    # build feature vector in same order as FEATURES
+    x = [[1 if feat in selected_norm else 0 for feat in FEATURES]]
+
     try:
-        # Get selected symptoms
-        selected_symptoms = [s for s in [symptom1, symptom2, symptom3, symptom4, symptom5] if s]
-
-        # Prepare input data (one-hot encoding of selected symptoms)
-        symptom_values = {s.replace(" ", "_"): 1 for s in selected_symptoms}
-        input_data = pd.DataFrame([{f: symptom_values.get(f, 0) for f in features}])
-
-        # Predict probabilities
-        probabilities = model.predict_proba(input_data)[0]
-        results = sorted(zip(classes, probabilities), key=lambda x: x[1], reverse=True)[:5]
-
-        # Format predictions
-        predictions = []
-        for disease, prob in results:
-            score = int(prob * 100)
-
-            if score >= 80:
-                confidence = "Very High"
-            elif score >= 60:
-                confidence = "High"
-            elif score >= 40:
-                confidence = "Moderate"
-            else:
-                confidence = "Low"
-
-            predictions.append({
-                "disease": disease,
-                "description": disease_info.get(disease, "No description available"),
-                "probability": f"{prob*100:.1f}%",
-                "confidence": confidence,
-                "score": score,
-                "score_color": "green" if score >= 60 else "orange" if score >= 40 else "red"
-            })
-
-        return templates.TemplateResponse("result.html", {
-            "request": request,
-            "predictions": predictions,
-            "selected_symptoms": selected_symptoms
-        })
-
+        if hasattr(model, "predict_proba"):
+            probs = model.predict_proba(x)[0]
+            classes = model.classes_
+            preds = sorted(
+                [
+                    (cls, round(prob * 100, 1))
+                    for cls, prob in zip(classes, probs)
+                ],
+                key=lambda x: x[1],
+                reverse=True,
+            )
+            formatted = [f"{cls} - {prob}%" for cls, prob in preds if prob > 0]
+            return {"predictions": formatted}
+        else:
+            pred = model.predict(x)[0]
+            return {"predictions": [pred]}
     except Exception as e:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "error": str(e)
-        })
+        return {"error": str(e)}
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8008, log_level="info")
+    uvicorn.run(app, host="0.0.0.0", port=8008)

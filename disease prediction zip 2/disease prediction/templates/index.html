@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Medicure | AI Diagnosis Helper</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #00b4d8;
+      --secondary: #0077b6;
+      --accent: #90e0ef;
+      --bg1: #03045e;
+      --bg2: #023e8a;
+      --glass: rgba(255, 255, 255, 0.15);
+      --text-light: #f1f1f1;
+      --text-muted: #b0c4de;
+      --futuristic-glow: 0 0 10px #00b4d8, 0 0 20px #0077b6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(-45deg, var(--bg1), var(--bg2), #00b4d8, #03045e);
+      background-size: 400% 400%;
+      animation: gradientMove 15s ease infinite;
+      color: var(--text-light);
+    }
+
+    @keyframes gradientMove {
+      0% {background-position: 0% 50%;}
+      50% {background-position: 100% 50%;}
+      100% {background-position: 0% 50%;}
+    }
+
+    .container {
+      background: var(--glass);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      border-radius: 20px;
+      padding: 2rem;
+      width: 90%;
+      max-width: 750px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      animation: fadeIn 1s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 2px;
+      text-shadow: var(--futuristic-glow);
+    }
+
+    .subtitle {
+      font-weight: 300;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    .form-container {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    label {
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    .symptom-block {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .symptom-block select {
+      padding: 12px 16px;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: 1px solid #ffffff33;
+      background-color: rgba(255, 255, 255, 0.85);
+      color: #000;
+      backdrop-filter: blur(10px);
+      transition: border 0.3s, box-shadow 0.3s;
+    }
+
+    .symptom-block select option {
+      background-color: #e0f7fa;
+      color: #000;
+    }
+
+    .symptom-block select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 10px var(--primary);
+    }
+
+    .btn {
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: white;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(0, 180, 216, 0.6);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 35px rgba(0, 180, 216, 0.8);
+    }
+
+    .symptom-counter {
+      text-align: right;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: -1rem;
+      margin-bottom: 1rem;
+    }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255,255,255,0.1);
+      padding-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>MEDICURE</h1>
+      <p class="subtitle">AI-powered symptom analysis for better health insights</p>
+    </header>
+
+    <form method="post" action="/predict" class="form-container">
+      <p class="symptom-counter">Select 1–5 symptoms</p>
+
+      {% for i in range(1, 6) %}
+      <div class="form-group">
+        <label for="symptom{{ i }}">{{ 'Primary' if i == 1 else 'Additional' }} Symptom{{ '*' if i == 1 else '' }}</label>
+        <div class="symptom-block">
+          <select name="symptom{{ i }}" id="symptom{{ i }}" {{ 'required' if i == 1 else '' }}>
+            <option value="">-- {{ 'Select your most noticeable symptom' if i == 1 else 'Optional' }} --</option>
+            {% for symptom in symptom_choices %}
+            <option value="{{ symptom }}">{{ symptom }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      {% endfor %}
+
+      <button type="submit" class="btn">Analyze Symptoms</button>
+    </form>
+
+    <footer>
+      This tool provides general health information and is not a substitute for professional medical advice.
+    </footer>
+  </div>
+</body>
+</html>
